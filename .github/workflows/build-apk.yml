@@ -34,9 +34,9 @@ jobs:
 
     - name: Add Android Platform to Capacitor
       run: |
-        npx cap add android
-        npx cap sync android
-
+        npx --yes @capacitor/cli add android
+        npx --yes @capacitor/cli sync android
+        
     - name: Build Debug APK
       run: |
         cd android
