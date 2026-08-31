@@ -1,0 +1,99 @@
+@import 'tailwindcss';
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ── Shuffle: one-shot spin on click ─────────────────────── */
+@keyframes shuffle-click {
+  0%   { transform: scale(1)    rotate(0deg);   }
+  25%  { transform: scale(0.88) rotate(120deg); }
+  65%  { transform: scale(1.06) rotate(320deg); }
+  100% { transform: scale(1)    rotate(360deg); }
+}
+.shuffle-clicked {
+  animation: shuffle-click 0.62s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Main tab content fade-up ────────────────────────────── */
+@keyframes tab-enter {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tab-enter {
+  animation: tab-enter 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Overlay screens: slide up from bottom ───────────────── */
+@keyframes screen-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.screen-enter {
+  animation: screen-slide-up 0.58s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Overlay screens: slide down on close ────────────────── */
+@keyframes screen-slide-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+.screen-exit {
+  animation: screen-slide-down 0.4s cubic-bezier(0.4, 0, 0.9, 1) both;
+}
+
+/* ── Genre card staggered entrance ──────────────────────── */
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(22px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.genre-card {
+  animation: slide-up-fade 0.45s cubic-bezier(0.34, 1.46, 0.64, 1) both;
+}
+
+/* ── Toast pop-in ────────────────────────────────────────── */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.toast-enter {
+  animation: toast-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Liquid glass surfaces ───────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.065);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.glass-dark {
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── Button press animation ──────────────────────────────── */
+.btn-interactive {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.15s ease, box-shadow 0.2s ease;
+}
+.btn-interactive:hover  { transform: scale(1.07); }
+.btn-interactive:active {
+  transform: scale(0.92);
+  transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ── EQ band transition ──────────────────────────────────── */
+.eq-bar { transition: height 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* hide scrollbars globally */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
