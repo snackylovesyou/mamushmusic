@@ -39,8 +39,7 @@ jobs:
 
       - name: Sync Capacitor and Build APK
         run: |
-          npm install @capacitor/cli@latest
-          npx cap sync android
+          npx --no-install cap sync android || npx @capacitor/cli sync android --legacy-peer-deps
           cd android
           chmod +x gradlew
           yes | sdkmanager --licenses || true
