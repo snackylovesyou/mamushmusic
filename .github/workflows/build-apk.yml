@@ -23,7 +23,6 @@ jobs:
       - name: Build Web App
         run: |
           npm run build
-          # Asegurar que la carpeta dist exista y tenga contenido web básico si estuviera vacía
           mkdir -p dist
 
       - name: Set up JDK 17
@@ -40,6 +39,7 @@ jobs:
 
       - name: Sync Capacitor and Build APK
         run: |
+          npm install @capacitor/cli@latest
           npx cap sync android
           cd android
           chmod +x gradlew
