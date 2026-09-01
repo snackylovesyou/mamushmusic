@@ -15,7 +15,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
@@ -23,23 +23,21 @@ jobs:
       - name: Build Web App
         run: npm run build
 
-      - name: Set up JDK 21
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Add Android Platform & Build APK
+      - name: Sync and Build APK
         run: |
-          rm -rf android
-          npx @capacitor/cli add android
           npx @capacitor/cli sync android
           cd android
           chmod +x gradlew
-          ./gradlew wrapper --gradle-version 8.13
+          ./gradlew wrapper --gradle-version 8.5
           chmod +x gradlew
           yes | sdkmanager --licenses || true
           ./gradlew assembleDebug
