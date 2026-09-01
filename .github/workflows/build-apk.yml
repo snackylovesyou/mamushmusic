@@ -18,9 +18,7 @@ jobs:
           node-version: '20'
 
       - name: Install Dependencies
-        run: |
-          npm install --legacy-peer-deps
-          npm install --save-dev @capacitor/cli --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Build Web App
         run: |
@@ -36,13 +34,13 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle Wrapper
-        uses: gradle/actions/setup-gradle@v3
-
       - name: Sync Capacitor and Build APK
         run: |
           npx cap sync android
           cd android
+          # Eliminamos por completo la carpeta gradle local dañada para forzar una regeneración limpia
+          rm -rf gradle/
+          gradle wrapper --gradle-version 8.5
           chmod +x gradlew
           yes | sdkmanager --licenses || true
           ./gradlew assembleDebug
@@ -51,4 +49,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apks
+          path: android/app/build/outputs/apk/debug/app-debug.apk
