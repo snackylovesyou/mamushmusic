@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createClient } from '@supabase/supabase-js';
+import '@jofr/capacitor-media-session'; // Plugin nativo para controles en segundo plano
 
 const supabaseUrl = 'https://qnognnjfxltpqqzpjtft.supabase.co';
 const supabaseKey = 'sb_publishable_Y9IviI2xrMpvq6kNav3jLA_E1zYZVJv';
@@ -84,21 +85,21 @@ function AddCircleIcon({ added, onClick, className="w-6 h-6" }: { added: boolean
 function PlaylistIcon({ className = "w-[18px] h-[18px]" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><polyline points="3 6 4 7 6 5" /><polyline points="3 12 4 13 6 11" /><polyline points="3 18 4 19 6 17" /></svg>; }
 function MicIcon({ className = "w-[18px] h-[18px]" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>; }
 function PlayIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="currentColor" className={className}><polygon points="5 3 19 12 5 21 5 3" /></svg>; }
-function PauseIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>; }
-function SkipBackIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><polygon points="19 20 9 12 19 4 19 20" /><rect x="5" y="4" width="2" height="16" rx="1" /></svg>; }
-function SkipFwdIcon() { return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><polygon points="5 4 15 12 5 20 5 4" /><rect x="17" y="4" width="2" height="16" rx="1" /></svg>; }
-function SearchIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="#777" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>; }
-function ArrowLeftIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>; }
+function PauseIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="currentColor" className={className}><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>; }
+function SkipBackIcon({ className = "w-[18px] h-[18px]" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="currentColor" className={className}><polygon points="19 20 9 12 19 4 19 20" /><rect x="5" y="4" width="2" height="16" rx="1" /></svg>; }
+function SkipFwdIcon({ className = "w-[18px] h-[18px]" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="currentColor" className={className}><polygon points="5 4 15 12 5 20 5 4" /><rect x="17" y="4" width="2" height="16" rx="1" /></svg>; }
+function SearchIcon({ className = "w-4 h-4 flex-shrink-0" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="#777" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>; }
+function ArrowLeftIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>; }
 function ChevronDownIcon({ className = "w-6 h-6" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="6 9 12 15 18 9" /></svg>; }
-function XIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>; }
-function HomeIcon({ active }: { active?: boolean }) { return <svg viewBox="0 0 24 24" fill={active ? "white" : "none"} stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>; }
-function PlusIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>; }
+function XIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>; }
+function HomeIcon({ active, className = "w-[18px] h-[18px]" }: { active?: boolean; className?: string }) { return <svg viewBox="0 0 24 24" fill={active ? "white" : "none"} stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>; }
+function PlusIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>; }
 function PencilIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg>; }
 function CameraIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>; }
-function NoteIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>; }
-function ZapIcon() { return <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
-function WaveformIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>; }
-function DiscIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" /></svg>; }
+function NoteIcon({ className = "w-6 h-6" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>; }
+function ZapIcon({ className = "w-6 h-6" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="white" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>; }
+function WaveformIcon({ className = "w-6 h-6" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>; }
+function DiscIcon({ className = "w-6 h-6" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" /></svg>; }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-[11px] font-semibold text-[#555] uppercase tracking-widest mb-3">{children}</p>;
@@ -877,6 +878,54 @@ export default function App() {
     if (window.ytPlayer) { window.ytPlayer.seekTo(newTime, true); setCurrentTime(newTime); }
   };
 
+  // ----------------------------------------------------
+  // NATIVO: Sincronizar Media Session para Background Play
+  // ----------------------------------------------------
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentSong) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: 'Snacky Music',
+        artwork: [
+          { src: `https://i.ytimg.com/vi/${currentSong.ytId}/hqdefault.jpg`, sizes: '512x512', type: 'image/jpeg' }
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => setPlaying(true));
+      navigator.mediaSession.setActionHandler('pause', () => setPlaying(false));
+      navigator.mediaSession.setActionHandler('previoustrack', () => handlePrev());
+      navigator.mediaSession.setActionHandler('nexttrack', () => handleNext());
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined && window.ytPlayer) {
+          window.ytPlayer.seekTo(details.seekTime, true);
+          setCurrentTime(details.seekTime);
+        }
+      });
+    }
+  }, [currentSong, handleNext, handlePrev]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+    }
+  }, [playing]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: duration,
+          playbackRate: 1,
+          position: Math.min(currentTime, duration)
+        });
+      } catch (e) {
+        // Ignorar de manera silenciosa si hay un desajuste temporal en el tiempo de reproducción
+      }
+    }
+  }, [currentTime, duration]);
+  // ----------------------------------------------------
+
   useEffect(() => {
     let interval: any;
     if (playing && ytReady) {
@@ -991,8 +1040,8 @@ export default function App() {
             <div className="absolute inset-0 z-40 flex flex-col bg-[#080808]">
               {overlay === "perfil" && <PerfilScreen onClose={closeOverlay} profileImg={profileImg} setProfileImg={setProfileImg} currentUser={currentUser} onLogout={handleLogout} />}
               {overlay === "genres" && <GenresScreen onClose={closeOverlay} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} />}
-              {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
-              {overlay === "playlist_detail" && <PlaylistDetailScreen onClose={closeOverlay} openOverlay={openOverlay} playlist={playlists.find(p => p.id === activePlaylistId)} setEditPlaylistId={setEditPlaylistId} setPlaylists={setPlaylists} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} userFavorites={userFavorites} />}
+              {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i || undefined}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
+              {overlay === "playlist_detail" && <PlaylistDetailScreen onClose={closeOverlay} openOverlay={openOverlay} playlist={playlists.find((p: Playlist) => p.id === activePlaylistId)} setEditPlaylistId={setEditPlaylistId} setPlaylists={setPlaylists} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} userFavorites={userFavorites} />}
             </div>
           )}
         </div>
