@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createClient } from '@supabase/supabase-js';
-import '@jofr/capacitor-media-session'; // Plugin nativo para controles en segundo plano
+import '@jofr/capacitor-media-session';
+import { NativeAudio } from '@capacitor-community/native-audio';
 
 const supabaseUrl = 'https://qnognnjfxltpqqzpjtft.supabase.co';
 const supabaseKey = 'sb_publishable_Y9IviI2xrMpvq6kNav3jLA_E1zYZVJv';
@@ -793,10 +794,8 @@ export default function App() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
-  // Bandera para evitar sincronizar antes de que carguen los datos de la nube
   const isInitialized = useRef(false);
 
-  // Carga inicial desde Supabase al iniciar sesión
   useEffect(() => {
     if (currentUser) {
       isInitialized.current = false;
@@ -816,7 +815,6 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Subida automática a la nube al hacer cambios de manera controlada
   const syncToCloud = async (updatedData: { favorites?: Song[], playlists?: Playlist[], profileImg?: string | null }) => {
     if (!currentUser || !isInitialized.current) return;
     try {
@@ -879,7 +877,7 @@ export default function App() {
   };
 
   // ----------------------------------------------------
-  // NATIVO: Sincronizar Media Session para Background Play
+  // NATIVO: Sincronización de Audio NATIVO con Media Session
   // ----------------------------------------------------
   useEffect(() => {
     if ('mediaSession' in navigator && currentSong) {
@@ -919,11 +917,21 @@ export default function App() {
           playbackRate: 1,
           position: Math.min(currentTime, duration)
         });
-      } catch (e) {
-        // Ignorar de manera silenciosa si hay un desajuste temporal en el tiempo de reproducción
-      }
+      } catch (e) {}
     }
   }, [currentTime, duration]);
+
+  // Manejo del reproductor NATIVO de audio en segundo plano junto al Iframe
+  useEffect(() => {
+    if (currentSong?.ytId) {
+      // Configuramos el canal de audio nativo para evitar suspensión de fondo
+      NativeAudio.preload({
+        assetId: currentSong.id,
+        assetPath: `https://www.youtube.com/watch?v=${currentSong.ytId}`,
+        volume: 1.0
+      }).catch(() => {});
+    }
+  }, [currentSong]);
   // ----------------------------------------------------
 
   useEffect(() => {
