@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-type Song = { id: string; title: string; artist: string; duration: string; grad: string; artworkUrl?: string; audioUrl?: string; ytId?: string };
+type Song = { id: string; title: string; artist: string; duration: string; grad: string; artworkUrl?: string; audioUrl?: string; streamUrl?: string; ytId?: string };
 type Playlist = { id: string; name: string; count: number; grad: string; desc: string; songs: Song[]; image?: string };
 type Tab = "inicio" | "playlists" | "favoritos" | "artistas";
 type Overlay = "genres" | "notificaciones" | "perfil" | "create_playlist" | "playlist_detail";
@@ -21,40 +21,32 @@ const SOUNDCLOUD_CLIENT_ID = "Pb72ranhoyt6gw7hM7TkzUItXlMWSNSo";
 
 async function searchSoundCloudAPI(query: string): Promise<Song[]> {
   const url = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=${SOUNDCLOUD_CLIENT_ID}&limit=25`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error(`SoundCloud search failed: ${response.status}`);
   const data = await response.json();
 
-  const songs = await Promise.all((data.collection || []).map(async (track: any) => {
-    try {
-      const transcoding = track.media?.transcodings?.find((item: any) => item.format?.protocol === "progressive")
-        || track.media?.transcodings?.[0];
-      let audioUrl: string | undefined;
+  return (data.collection || []).map((track: any) => {
+    const transcoding = track.media?.transcodings?.find((item: any) => item.format?.protocol === "progressive")
+      || track.media?.transcodings?.[0];
+    return {
+      id: String(track.id),
+      title: track.title,
+      artist: track.user?.username || "SoundCloud",
+      duration: formatTime(track.duration / 1000),
+      grad: "from-zinc-800 to-black",
+      artworkUrl: track.artwork_url || track.user?.avatar_url,
+      streamUrl: transcoding?.url,
+    };
+  });
+}
 
-      if (transcoding?.url) {
-        const separator = transcoding.url.includes("?") ? "&" : "?";
-        const streamResponse = await fetch(`${transcoding.url}${separator}client_id=${SOUNDCLOUD_CLIENT_ID}`);
-        if (streamResponse.ok) {
-          const streamData = await streamResponse.json();
-          audioUrl = streamData.url;
-        }
-      }
-
-      return {
-        id: String(track.id),
-        title: track.title,
-        artist: track.user?.username || "SoundCloud",
-        duration: formatTime(track.duration / 1000),
-        grad: "from-zinc-800 to-black",
-        artworkUrl: track.artwork_url || track.user?.avatar_url,
-        audioUrl,
-      };
-    } catch {
-      return null;
-    }
-  }));
-
-  return songs.filter((song): song is Song => song !== null && Boolean(song.audioUrl));
+async function resolveSoundCloudStream(streamUrl: string): Promise<string> {
+  const separator = streamUrl.includes("?") ? "&" : "?";
+  const response = await fetch(`${streamUrl}${separator}client_id=${SOUNDCLOUD_CLIENT_ID}`, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error(`SoundCloud stream failed: ${response.status}`);
+  const data = await response.json();
+  if (!data.url) throw new Error("SoundCloud stream URL missing");
+  return data.url;
 }
 
 const formatTime = (secs: number) => {
@@ -220,8 +212,13 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim() !== '') {
       setIsSearching(true); setHasSearched(true);
-      const results = await searchSoundCloudAPI(searchQuery);
-      setSearchResults(results); setIsSearching(false);
+      try {
+        setSearchResults(await searchSoundCloudAPI(searchQuery));
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
     }
   };
 
@@ -329,8 +326,12 @@ function GenresScreen({ onClose, setQueue, setCurrentSong, setPlaying }: any) {
 
   const handleGenreClick = async (genre: any) => {
     setLoadingGenre(genre.id);
-    const results = await searchSoundCloudAPI(genre.query);
-    setLoadingGenre(null);
+    let results: Song[] = [];
+    try {
+      results = await searchSoundCloudAPI(genre.query);
+    } finally {
+      setLoadingGenre(null);
+    }
     if (results.length > 0) {
       const randomSong = results[Math.floor(Math.random() * results.length)];
       setQueue(results); setCurrentSong(randomSong); setPlaying(true); onClose();
@@ -510,8 +511,13 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
   const handleSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && search.trim() !== '') {
       setIsSearching(true);
-      const res = await searchSoundCloudAPI(search);
-      setResults(res); setIsSearching(false);
+      try {
+        setResults(await searchSoundCloudAPI(search));
+      } catch {
+        setResults([]);
+      } finally {
+        setIsSearching(false);
+      }
     }
   };
 
@@ -922,10 +928,29 @@ export default function App() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.src = currentSong?.audioUrl || "";
-    audio.load();
-    if (currentSong && playing) void audio.play().catch(() => setPlaying(false));
-  }, [currentSong?.audioUrl]);
+    let cancelled = false;
+
+    const loadTrack = async () => {
+      if (!currentSong) {
+        audio.removeAttribute("src");
+        audio.load();
+        return;
+      }
+
+      try {
+        const audioUrl = currentSong.audioUrl || (currentSong.streamUrl ? await resolveSoundCloudStream(currentSong.streamUrl) : undefined);
+        if (cancelled || !audioUrl) throw new Error("Pista sin stream reproducible");
+        audio.src = audioUrl;
+        audio.load();
+        if (playing) await audio.play();
+      } catch {
+        if (!cancelled) setPlaying(false);
+      }
+    };
+
+    void loadTrack();
+    return () => { cancelled = true; };
+  }, [currentSong?.id, currentSong?.audioUrl, currentSong?.streamUrl]);
 
   useEffect(() => {
     const audio = audioRef.current;
