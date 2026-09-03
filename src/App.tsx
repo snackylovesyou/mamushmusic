@@ -312,13 +312,6 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
         </section>
       ) : (
         <>
-          <div className="mx-4 mb-6">
-            <button onClick={() => openOverlay("genres")} className="w-full glass rounded-3xl p-4 flex items-center gap-4 text-left active:scale-95 transition-transform border border-[#1ed760]/30 shadow-[0_0_15px_rgba(30,215,96,0.15)] btn-interactive">
-              <div className="w-14 h-14 rounded-2xl bg-[#1ed760] flex items-center justify-center text-black flex-shrink-0"><ShuffleIcon /></div>
-              <div><p className="text-sm font-bold text-white">Magia Aleatoria</p><p className="text-xs text-[#bbb] mt-0.5">Vocaloid, Regional, Trap, Rap...</p></div>
-            </button>
-          </div>
-
           {playlists.length > 0 && (
             <section className="mb-6 px-4">
               <SectionLabel>Tus Playlists</SectionLabel>
@@ -725,13 +718,13 @@ function PlayerBar({ currentSong, playing, setPlaying, currentTime, duration, se
           <button className="p-1.5 btn-interactive" onClick={(e) => { e.stopPropagation(); toggleFavorite(currentSong); }}>
             <HeartIcon filled={isFav} className="w-4 h-4" />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); handlePrev(); }} className="text-white/70 hover:text-white p-1 btn-interactive">
+          <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePrev(); }} className="text-white/70 hover:text-white p-1 btn-interactive">
             <SkipBackIcon />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); setPlaying(!playing); }} className="w-9 h-9 flex items-center justify-center text-white rounded-full bg-white/10 btn-interactive">
+          <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPlaying(!playing); }} className="w-9 h-9 flex items-center justify-center text-white rounded-full bg-white/10 btn-interactive">
             {playing ? <PauseIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4 ml-0.5" />}
           </button>
-          <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="text-white/70 hover:text-white p-1 btn-interactive">
+          <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleNext(); }} className="text-white/70 hover:text-white p-1 btn-interactive">
             <SkipFwdIcon />
           </button>
         </div>
@@ -782,7 +775,7 @@ function PerfilScreen({ onClose, profileImg, setProfileImg, currentUser, onLogou
   );
 }
 
-function BottomNav({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: (t: Tab) => void }) {
+function BottomNav({ activeTab, setActiveTab, onArtistsBlocked }: { activeTab: Tab; setActiveTab: (t: Tab) => void; onArtistsBlocked: () => void }) {
   const tabs = [
     { id: "inicio", label: "Inicio", icon: (a:boolean) => <HomeIcon active={a} /> },
     { id: "playlists", label: "Playlists", icon: (a:boolean) => <PlaylistIcon className={`w-[18px] h-[18px] ${a ? "" : "opacity-40"}`} /> },
@@ -793,7 +786,7 @@ function BottomNav({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: 
     <nav className="px-3 pb-8 pt-1 relative z-[60] bg-[#070707]">
       <div className="glass rounded-3xl flex items-center justify-around py-3 px-1">
         {tabs.map(({ id, label, icon }) => (
-          <button key={id} onClick={() => setActiveTab(id as Tab)} className="flex flex-col items-center gap-1 px-3 btn-interactive">
+          <button key={id} onClick={() => id === "artistas" ? onArtistsBlocked() : setActiveTab(id as Tab)} className="flex flex-col items-center gap-1 px-3 btn-interactive" aria-disabled={id === "artistas"}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${activeTab === id ? "bg-white/15" : ""}`}>{icon(activeTab === id)}</div>
             <span className={`text-[10px] font-medium transition-colors duration-300 ${activeTab === id ? "text-white" : "text-[#555]"}`}>{label}</span>
           </button>
@@ -829,6 +822,7 @@ export default function App() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [updateRequired, setUpdateRequired] = useState<{ versionName: string; downloadUrl: string } | null>(null);
+  const [artistsNotice, setArtistsNotice] = useState(false);
 
   const isInitialized = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -1043,6 +1037,10 @@ export default function App() {
 
   const openOverlay = useCallback((o: Overlay) => { setOverlay(o); }, []);
   const closeOverlay = useCallback(() => { setOverlay(null); }, []);
+  const handleArtistsBlocked = useCallback(() => {
+    setArtistsNotice(true);
+    window.setTimeout(() => setArtistsNotice(false), 1800);
+  }, []);
 
   if (updateRequired) {
     return <UpdateRequired {...updateRequired} />;
@@ -1082,7 +1080,8 @@ export default function App() {
 
         <FullScreenPlayer isFullScreen={isFullScreen} setIsFullScreen={setIsFullScreen} currentSong={currentSong} playing={playing} setPlaying={setPlaying} isRepeat={isRepeat} setIsRepeat={setIsRepeat} isShuffle={isShuffle} setIsShuffle={setIsShuffle} handleNext={handleNext} handlePrev={handlePrev} currentTime={currentTime} duration={duration} handleSeek={handleSeek} userFavorites={userFavorites} toggleFavorite={toggleFavorite} />
         {!isFullScreen && <PlayerBar currentSong={currentSong} playing={playing} setPlaying={setPlaying} currentTime={currentTime} duration={duration} setIsFullScreen={setIsFullScreen} handleNext={handleNext} handlePrev={handlePrev} userFavorites={userFavorites} toggleFavorite={toggleFavorite} />}
-        {!isFullScreen && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {!isFullScreen && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onArtistsBlocked={handleArtistsBlocked} />}
+        {artistsNotice && <div role="status" className="fixed bottom-28 left-1/2 z-[100] -translate-x-1/2 rounded-full bg-white px-5 py-3 text-sm font-bold text-black shadow-2xl">pronto..</div>}
         
       </div>
     </div>
