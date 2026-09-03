@@ -20,7 +20,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci --legacy-peer-deps
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -36,7 +36,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7' # ¡VERSIÓN CORREGIDA! Soporte total para Java 21
+          gradle-version: '8.14.3' # ¡VERSIÓN CORREGIDA! Soporte total para Java 21
 
       - name: Build Android APK
         working-directory: android
