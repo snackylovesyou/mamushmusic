@@ -98,7 +98,7 @@ function UpdateRequired({ versionName, downloadUrl }: { versionName: string; dow
       <div className="w-full max-w-[390px] rounded-3xl bg-[#101010] p-8 shadow-2xl">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1ed760] text-3xl text-black">!</div>
         <h1 className="text-2xl font-bold text-white">Actualización necesaria</h1>
-        <p className="mt-3 text-sm text-[#aaa]">Hay una versión nueva de Snacky Music. Actualiza para continuar.</p>
+        <p className="mt-3 text-sm text-[#aaa]">Hay una versión nueva de iSnacky. Actualiza para continuar.</p>
         <button onClick={() => window.open(downloadUrl || RELEASES_URL, "_blank")} className="mt-6 w-full rounded-full bg-[#1ed760] py-4 font-bold text-black btn-interactive">
           Descargar versión {versionName}
         </button>
@@ -248,7 +248,7 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
           <div className="w-20 h-20 bg-[#1ed760] rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(30,215,96,0.3)] mb-4">
             <PlayIcon className="w-10 h-10 text-black ml-1" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Snacky Music</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">iSnacky</h1>
           <p className="text-xs text-[#777] mt-2">Sincronización automática en la nube</p>
         </div>
 
@@ -774,7 +774,7 @@ function PlayerBar({ currentSong, playing, setPlaying, currentTime, duration, se
   );
 }
 
-function PerfilScreen({ onClose, profileImg, setProfileImg, currentUser, onLogout }: any) {
+function PerfilScreen({ onClose, profileImg, setProfileImg, currentUser, onLogout, appVersion }: any) {
   const [activePreset, setActivePreset] = useState("Normal");
   const [eqValues, setEqValues] = useState([0, 0, 0, 0, 0]);
   const fileInputRefReal = useRef<HTMLInputElement>(null);
@@ -802,7 +802,7 @@ function PerfilScreen({ onClose, profileImg, setProfileImg, currentUser, onLogou
         </div>
       </div>
 
-      <div className="mb-6"><SectionLabel>Configuración</SectionLabel><div className="glass rounded-3xl overflow-hidden divide-y divide-white/[0.06]"><button className="w-full flex items-center justify-between px-4 py-3.5 text-left btn-interactive"><span className="text-sm text-white">Calidad de audio</span><span className="text-xs text-[#555]">Muy alta</span></button><button onClick={onLogout} className="w-full flex items-center justify-between px-4 py-3.5 text-left btn-interactive"><span className="text-sm text-red-400">Cerrar sesión</span></button></div></div>
+      <div className="mb-6"><SectionLabel>Configuración</SectionLabel><div className="glass rounded-3xl overflow-hidden divide-y divide-white/[0.06]"><button className="w-full flex items-center justify-between px-4 py-3.5 text-left btn-interactive"><span className="text-sm text-white">Calidad de audio</span><span className="text-xs text-[#555]">Muy alta</span></button><div className="w-full flex items-center justify-between px-4 py-3.5"><span className="text-sm text-white">Versión</span><span className="text-xs text-[#777]">{appVersion}</span></div><button onClick={onLogout} className="w-full flex items-center justify-between px-4 py-3.5 text-left btn-interactive"><span className="text-sm text-red-400">Cerrar sesión</span></button></div></div>
       <div className="mb-4"><SectionLabel>Ecualizador</SectionLabel><div className="glass rounded-3xl p-4"><div className="flex flex-wrap gap-2 mb-5">{Object.keys(EQ_PRESETS).map(preset => (<button key={preset} onClick={() => selectPreset(preset)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 btn-interactive ${ activePreset === preset ? "bg-[#1ed760] text-black" : "glass text-[#888]" }`}>{preset}</button>))}</div><div className="flex items-end justify-around gap-2 h-32">{eqValues.map((v, i) => { const pct = ((v + 8) / 16) * 100; return (<div key={i} className="flex flex-col items-center gap-1 flex-1"><span className="text-[9px] text-[#555] h-3">{v > 0 ? `+${v}` : v !== 0 ? v : ""}</span><div className="w-full flex-1 bg-white/[0.07] rounded-full relative overflow-hidden"><div className="absolute bottom-0 w-full rounded-full transition-all duration-300" style={{ height: `${pct}%`, background: activePreset === "Normal" ? "rgba(255,255,255,0.3)" : "#1ed760" }} /></div><span className="text-[9px] text-[#444] text-center">{EQ_BANDS[i]}</span></div>); })}</div></div></div>
     </div>
   );
@@ -855,10 +855,17 @@ export default function App() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [updateRequired, setUpdateRequired] = useState<{ versionName: string; downloadUrl: string } | null>(null);
+  const [appVersion, setAppVersion] = useState("1.3.0");
   const [artistsNotice, setArtistsNotice] = useState(false);
 
   const isInitialized = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      void CapacitorApp.getInfo().then(({ version }) => setAppVersion(version));
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -1110,7 +1117,7 @@ export default function App() {
 
           {overlay && (
             <div className="absolute inset-0 z-40 flex flex-col bg-[#080808]">
-              {overlay === "perfil" && <PerfilScreen onClose={closeOverlay} profileImg={profileImg} setProfileImg={setProfileImg} currentUser={currentUser} onLogout={handleLogout} />}
+              {overlay === "perfil" && <PerfilScreen onClose={closeOverlay} profileImg={profileImg} setProfileImg={setProfileImg} currentUser={currentUser} onLogout={handleLogout} appVersion={appVersion} />}
               {overlay === "genres" && <GenresScreen onClose={closeOverlay} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} />}
               {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i||undefined}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
               {overlay === "playlist_detail" && <PlaylistDetailScreen onClose={closeOverlay} openOverlay={openOverlay} playlist={playlists.find(p => p.id === activePlaylistId)} setEditPlaylistId={setEditPlaylistId} setPlaylists={setPlaylists} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} userFavorites={userFavorites} />}

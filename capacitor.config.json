@@ -1,6 +1,6 @@
 {
   "appId": "com.snackymusic.app",
-  "appName": "Snacky Music",
+  "appName": "iSnacky",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "plugins": {
