@@ -5,5 +5,8 @@ project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/
 include ':capacitor-community-native-audio'
 project(':capacitor-community-native-audio').projectDir = new File('../node_modules/@capacitor-community/native-audio/android')
 
+include ':capacitor-app'
+project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/android')
+
 include ':jofr-capacitor-media-session'
 project(':jofr-capacitor-media-session').projectDir = new File('../node_modules/@jofr/capacitor-media-session/android')

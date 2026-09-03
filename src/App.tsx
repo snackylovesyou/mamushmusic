@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { createClient } from '@supabase/supabase-js';
 import { MediaSession } from '@jofr/capacitor-media-session';
 
@@ -87,6 +88,24 @@ const EQ_BANDS = ["60Hz", "250Hz", "1kHz", "4kHz", "16kHz"];
 const EQ_PRESETS: Record<string, number[]> = { "Normal": [0,0,0,0,0], "Rock": [5,3,0,3,5], "Pop": [-1,2,5,2,-1], "Bass Boost": [7,5,1,-1,-2] };
 const gradients = ["from-pink-500 to-rose-500", "from-blue-500 to-cyan-500", "from-purple-500 to-indigo-500", "from-amber-500 to-orange-500"];
 const placeholders = ["se que piensas...", "dale play!", "destronado", "mikumikumiku", "buscar temazo..."];
+
+const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/snackylovesyou/mamushmusic/main/update.json";
+const RELEASES_URL = "https://github.com/snackylovesyou/mamushmusic/releases/latest";
+
+function UpdateRequired({ versionName, downloadUrl }: { versionName: string; downloadUrl: string }) {
+  return (
+    <div className="flex min-h-full items-center justify-center bg-[#070707] px-6 text-center">
+      <div className="w-full max-w-[390px] rounded-3xl bg-[#101010] p-8 shadow-2xl">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1ed760] text-3xl text-black">!</div>
+        <h1 className="text-2xl font-bold text-white">Actualización necesaria</h1>
+        <p className="mt-3 text-sm text-[#aaa]">Hay una versión nueva de Snacky Music. Actualiza para continuar.</p>
+        <button onClick={() => window.open(downloadUrl || RELEASES_URL, "_blank")} className="mt-6 w-full rounded-full bg-[#1ed760] py-4 font-bold text-black btn-interactive">
+          Descargar versión {versionName}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ShuffleIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" /><polyline points="21 16 21 21 16 21" /><line x1="4" y1="4" x2="9" y2="9" /></svg>; }
 function RepeatIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>; }
@@ -809,9 +828,37 @@ export default function App() {
 
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [updateRequired, setUpdateRequired] = useState<{ versionName: string; downloadUrl: string } | null>(null);
 
   const isInitialized = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const checkForRequiredUpdate = async () => {
+      try {
+        const [installed, response] = await Promise.all([
+          CapacitorApp.getInfo(),
+          fetchWithTimeout(`${UPDATE_MANIFEST_URL}?t=${Date.now()}`),
+        ]);
+        if (!response.ok) return;
+        const manifest = await response.json();
+        const installedVersionCode = Number(installed.build || 0);
+        const latestVersionCode = Number(manifest.latestVersionCode || 0);
+        if (latestVersionCode > installedVersionCode) {
+          setUpdateRequired({
+            versionName: manifest.latestVersionName || "nueva",
+            downloadUrl: manifest.downloadUrl || RELEASES_URL,
+          });
+        }
+      } catch {
+        // An update check must never prevent offline use.
+      }
+    };
+
+    void checkForRequiredUpdate();
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -996,6 +1043,10 @@ export default function App() {
 
   const openOverlay = useCallback((o: Overlay) => { setOverlay(o); }, []);
   const closeOverlay = useCallback(() => { setOverlay(null); }, []);
+
+  if (updateRequired) {
+    return <UpdateRequired {...updateRequired} />;
+  }
 
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} />;
