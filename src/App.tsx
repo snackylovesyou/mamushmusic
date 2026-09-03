@@ -1,37 +1,61 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createClient } from '@supabase/supabase-js';
-import '@jofr/capacitor-media-session';
-import { NativeAudio } from '@capacitor-community/native-audio';
 
 const supabaseUrl = 'https://qnognnjfxltpqqzpjtft.supabase.co';
 const supabaseKey = 'sb_publishable_Y9IviI2xrMpvq6kNav3jLA_E1zYZVJv';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-type Song = { id: string; title: string; artist: string; duration: string; grad: string; audioUrl: string; coverUrl: string };
+declare global {
+  interface Window { 
+    onYouTubeIframeAPIReady: () => void; 
+    YT: any; 
+    ytPlayer: any; 
+    cordova: any; // Agregado para soportar el plugin de segundo plano
+  }
+}
+
+type Song = { id: string; title: string; artist: string; duration: string; grad: string; ytId: string };
 type Playlist = { id: string; name: string; count: number; grad: string; desc: string; songs: Song[]; image?: string };
 type Tab = "inicio" | "playlists" | "favoritos" | "artistas";
 type Overlay = "genres" | "notificaciones" | "perfil" | "create_playlist" | "playlist_detail";
 
-// Búsqueda directa en la API pública de Deezer (Audio real compatible con segundo plano nativo)
-async function searchDeezerAPI(query: string): Promise<Song[]> {
-  try {
-    const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&output=json`);
-    const data = await res.json();
-    if (!data.data || data.data.length === 0) return [];
+const YOUTUBE_API_KEYS = [
+  "AIzaSyBs19MUWL4VnspLsEW5dalvN93UolEu3Hs",
+  "AIzaSyAJx7WpOJRfOmz0DZhm2YtojqihjCSrf3k"
+];
 
-    return data.data.map((item: any) => ({
-      id: item.id.toString(),
-      title: item.title,
-      artist: item.artist.name,
-      duration: formatTime(item.duration),
-      grad: "from-zinc-800 to-black",
-      audioUrl: item.preview, // Flujo de audio directo de Deezer (.mp3)
-      coverUrl: item.album.cover_medium || item.album.cover_small
-    }));
-  } catch (error) {
-    console.error("Error buscando en Deezer:", error);
-    return [];
+let currentApiKeyIndex = 0;
+
+async function searchYouTubeAPI(query: string): Promise<Song[]> {
+  if (YOUTUBE_API_KEYS.length === 0) { alert("¡Faltan las API Keys!"); return []; }
+
+  for (let attempt = 0; attempt < YOUTUBE_API_KEYS.length; attempt++) {
+    const activeKey = YOUTUBE_API_KEYS[currentApiKeyIndex];
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${encodeURIComponent(query)}&type=video&key=${activeKey}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.error) {
+        currentApiKeyIndex = (currentApiKeyIndex + 1) % YOUTUBE_API_KEYS.length;
+        continue;
+      }
+
+      if (!data.items || data.items.length === 0) return [];
+
+      return data.items.map((item: any) => ({
+        id: item.id.videoId,
+        title: item.snippet.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'),
+        artist: item.snippet.channelTitle,
+        duration: "--:--", grad: "from-zinc-800 to-black", ytId: item.id.videoId
+      }));
+
+    } catch (error) {
+      currentApiKeyIndex = (currentApiKeyIndex + 1) % YOUTUBE_API_KEYS.length;
+    }
   }
+  return [];
 }
 
 const formatTime = (secs: number) => {
@@ -42,7 +66,7 @@ const formatTime = (secs: number) => {
 };
 
 function SongImage({ song, className }: { song: Song, className?: string }) {
-  if (song.coverUrl) return <img src={song.coverUrl} alt={song.title} className={`object-cover ${className}`} />;
+  if (song.ytId) return <img src={`https://i.ytimg.com/vi/${song.ytId}/hqdefault.jpg`} alt={song.title} className={`object-cover ${className}`} />;
   return <div className={`${className} bg-gradient-to-br ${song.grad}`} />;
 }
 
@@ -194,11 +218,11 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
 
   useEffect(() => { setPlaceholder(placeholders[Math.floor(Math.random() * placeholders.length)]); }, []);
 
-  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim() !== '') {
       setIsSearching(true); setHasSearched(true);
-      const results = await searchDeezerAPI(searchQuery);
-      setSearchResults(results); setIsSearching(false);
+      const results = await searchYouTubeAPI(searchQuery);
+      setSearchResults(results); setIsSearching(false); // <-- Le agregamos el 'set'
     }
   };
 
@@ -226,7 +250,7 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
       </div>
 
       {isSearching ? (
-        <p className="text-sm text-[#777] text-center mt-8 animate-pulse">Buscando en Deezer...</p>
+        <p className="text-sm text-[#777] text-center mt-8 animate-pulse">Conectando con YouTube...</p>
       ) : hasSearched ? (
         <section className="mb-4 px-4 flex-1">
           <SectionLabel>Resultados de la red</SectionLabel>
@@ -295,17 +319,18 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
 
 function GenresScreen({ onClose, setQueue, setCurrentSong, setPlaying }: any) {
   const [loadingGenre, setLoadingGenre] = useState<string | null>(null);
+
   const genres = [
-    { id: "vocaloid", name: "Vocaloid", icon: <NoteIcon />, grad: "from-teal-400 to-cyan-500", query: "vocaloid" },
-    { id: "regional", name: "Regional Mexicano", icon: <DiscIcon />, grad: "from-amber-500 to-orange-600", query: "regional mexicano" },
-    { id: "corridos", name: "Corridos", icon: <ZapIcon />, grad: "from-red-600 to-amber-500", query: "corridos tumbados" },
-    { id: "trap", name: "Trap", icon: <WaveformIcon />, grad: "from-purple-600 to-pink-600", query: "latin trap" },
-    { id: "rap", name: "Rap", icon: <MicIcon />, grad: "from-blue-600 to-indigo-800", query: "spanish rap" },
+    { id: "vocaloid", name: "Vocaloid", icon: <NoteIcon />, grad: "from-teal-400 to-cyan-500", query: "vocaloid official song" },
+    { id: "regional", name: "Regional Mexicano", icon: <DiscIcon />, grad: "from-amber-500 to-orange-600", query: "regional mexicano exitos" },
+    { id: "corridos", name: "Corridos", icon: <ZapIcon />, grad: "from-red-600 to-amber-500", query: "corridos tumbados exitos" },
+    { id: "trap", name: "Trap", icon: <WaveformIcon />, grad: "from-purple-600 to-pink-600", query: "latin trap hits" },
+    { id: "rap", name: "Rap", icon: <MicIcon />, grad: "from-blue-600 to-indigo-800", query: "spanish rap hits" },
   ];
 
   const handleGenreClick = async (genre: any) => {
     setLoadingGenre(genre.id);
-    const results = await searchDeezerAPI(genre.query);
+    const results = await searchYouTubeAPI(genre.query);
     setLoadingGenre(null);
     if (results.length > 0) {
       const randomSong = results[Math.floor(Math.random() * results.length)];
@@ -486,7 +511,7 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
   const handleSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && search.trim() !== '') {
       setIsSearching(true);
-      const res = await searchDeezerAPI(search);
+      const res = await searchYouTubeAPI(search);
       setResults(res); setIsSearching(false);
     }
   };
@@ -526,7 +551,7 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
         ))}
 
         <div className="mt-8 mb-4 border-t border-white/10 pt-6">
-          <p className="text-sm font-bold text-white mb-3">Buscar en Deezer</p>
+          <p className="text-sm font-bold text-white mb-3">Buscar en YouTube</p>
           <div className="glass rounded-2xl flex items-center gap-3 px-4 py-3 border border-white/10 mb-4 focus-within:border-[#1ed760]/50 transition-colors">
             <SearchIcon />
             <input type="text" placeholder="Escribe y presiona Enter..." className="bg-transparent outline-none text-sm text-white w-full placeholder-[#777]" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearch} />
@@ -563,6 +588,29 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
 }
 
 function FullScreenPlayer({ currentSong, playing, setPlaying, isRepeat, setIsRepeat, isShuffle, setIsShuffle, handleNext, handlePrev, currentTime, duration, handleSeek, isFullScreen, setIsFullScreen, userFavorites, toggleFavorite }: any) {
+  const [showVideo, setShowVideo] = useState(false);
+
+  useEffect(() => {
+    const container = document.getElementById("yt-isolated-container");
+    if (container) {
+      if (isFullScreen && showVideo) {
+        container.style.position = "absolute";
+        container.style.top = "0";
+        container.style.left = "0";
+        container.style.width = "100%";
+        container.style.height = "100%";
+        container.style.borderRadius = "24px";
+        container.style.zIndex = "120";
+        container.style.opacity = "1";
+        container.style.pointerEvents = "auto";
+      } else {
+        container.style.top = "-9999px";
+        container.style.opacity = "0";
+        container.style.pointerEvents = "none";
+      }
+    }
+  }, [isFullScreen, showVideo]);
+
   if (!currentSong) return null;
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
   const isFav = userFavorites.some((fav: Song) => fav.id === currentSong.id);
@@ -573,13 +621,17 @@ function FullScreenPlayer({ currentSong, playing, setPlaying, isRepeat, setIsRep
       
       <div className="flex items-center justify-between px-6 pt-12 pb-6 relative z-10">
         <button onClick={() => setIsFullScreen(false)} className="p-2 text-white btn-interactive"><ChevronDownIcon /></button>
-        <p className="text-xs font-bold text-[#1ed760] tracking-widest uppercase">Reproductor Nativo</p>
+        <div className="glass rounded-full flex items-center p-1">
+          <button onClick={() => setShowVideo(false)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors btn-interactive ${!showVideo ? 'bg-white text-black' : 'text-white'}`}>Canción</button>
+          <button onClick={() => setShowVideo(true)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors btn-interactive ${showVideo ? 'bg-white text-black' : 'text-white'}`}>Video</button>
+        </div>
         <div className="w-10" />
       </div>
 
       <div className="flex-1 flex flex-col justify-center px-8 pb-12 relative z-10">
         <div className="w-full aspect-square rounded-3xl shadow-2xl mb-10 overflow-hidden relative bg-black/40 flex flex-col items-center justify-center">
-          <SongImage song={currentSong} className="w-full h-full" />
+          {!showVideo && <SongImage song={currentSong} className="w-full h-full" />}
+          <div id="youtube-player-slot" className={`w-full h-full absolute inset-0 ${showVideo ? 'block' : 'hidden'}`} />
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -737,16 +789,47 @@ export default function App() {
   const [queue, setQueue] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [ytReady, setYtReady] = useState(false);
   
   const [isRepeat, setIsRepeat] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  const [duration, setDuration] = useState(30); // Deezer preview dura 30s
+  const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const isInitialized = useRef(false);
+
+  // EFECTO NUEVO: Iniciar Background Mode al cargar la app
+  useEffect(() => {
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
+      const bgMode = window.cordova.plugins.backgroundMode;
+      bgMode.enable();
+      
+      // Opciones visuales de la notificación
+      bgMode.setDefaults({
+        title: "Snacky Music",
+        text: "Reproduciendo música en segundo plano",
+        color: '1ed760',
+        hidden: false,
+        silent: true
+      });
+
+      // CRUCIAL: Evitar que el sistema pause el navegador interno 
+      bgMode.on('activate', () => {
+        bgMode.disableWebViewOptimizations();
+      });
+    }
+  }, []);
+
+  // EFECTO NUEVO: Actualizar la notificación cuando cambia la canción
+  useEffect(() => {
+    if (currentSong && window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
+      window.cordova.plugins.backgroundMode.configure({
+        text: `${currentSong.title} - ${currentSong.artist}`
+      });
+    }
+  }, [currentSong]);
 
   useEffect(() => {
     if (currentUser) {
@@ -797,7 +880,6 @@ export default function App() {
     setCurrentUser(null);
     setCurrentSong(null);
     setPlaying(false);
-    if (audioRef.current) audioRef.current.pause();
   };
 
   const stateRef = useRef({ queue, currentSong, isRepeat, isShuffle });
@@ -810,7 +892,7 @@ export default function App() {
   const handleNext = useCallback(() => {
     const { queue, currentSong, isShuffle, isRepeat } = stateRef.current;
     if (queue.length === 0 || !currentSong) return;
-    if (isRepeat && audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play(); return; }
+    if (isRepeat && window.ytPlayer) { window.ytPlayer.seekTo(0); window.ytPlayer.playVideo(); return; }
     if (isShuffle) setCurrentSong(queue[Math.floor(Math.random() * queue.length)]);
     else setCurrentSong(queue[(queue.findIndex(s => s.id === currentSong.id) + 1) % queue.length]);
     setPlaying(true);
@@ -826,73 +908,94 @@ export default function App() {
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const newTime = ((e.clientX - r.left) / r.width) * duration;
-    if (audioRef.current) { audioRef.current.currentTime = newTime; setCurrentTime(newTime); }
+    if (window.ytPlayer) { window.ytPlayer.seekTo(newTime, true); setCurrentTime(newTime); }
   };
 
-  // Inicializar elemento de audio nativo HTML5 con soporte de segundo plano
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.addEventListener('timeupdate', () => {
-        if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
-      });
-      audioRef.current.addEventListener('ended', () => {
-        handleNext();
-      });
+    let interval: any;
+    if (playing && ytReady) {
+      interval = setInterval(() => {
+        if (window.ytPlayer && typeof window.ytPlayer.getCurrentTime === 'function') {
+          setCurrentTime(window.ytPlayer.getCurrentTime());
+          setDuration(window.ytPlayer.getDuration() || 0);
+        }
+      }, 500);
     }
+    return () => clearInterval(interval);
+  }, [playing, ytReady]);
+
+  useEffect(() => {
+    let container = document.getElementById("yt-isolated-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "yt-isolated-container";
+      container.style.position = "fixed";
+      container.style.top = "-9999px";
+      container.style.left = "-9999px";
+      container.style.width = "280px"; 
+      container.style.height = "280px";
+      container.style.pointerEvents = "none";
+      const playerDiv = document.createElement("div");
+      playerDiv.id = "youtube-player-root";
+      container.appendChild(playerDiv);
+      document.body.appendChild(container);
+    }
+
+    const initPlayer = () => {
+      if (!window.ytPlayer) {
+        window.ytPlayer = new window.YT.Player("youtube-player-root", {
+          height: '100%', width: '100%',
+          playerVars: { 
+            autoplay: 1, 
+            controls: 0, 
+            disablekb: 1, 
+            fs: 0, 
+            modestbranding: 1, 
+            playsinline: 1, 
+            origin: window.location.origin 
+          },
+          events: {
+            onReady: () => { setYtReady(true); if (window.ytPlayer.unMute) window.ytPlayer.unMute(); if (window.ytPlayer.setVolume) window.ytPlayer.setVolume(100); },
+            onStateChange: (e: any) => { if (e.data === window.YT.PlayerState.ENDED) window.dispatchEvent(new Event("song-ended")); },
+            onError: () => {
+              setTimeout(() => {
+                if (window.ytPlayer && currentSong?.ytId) {
+                  window.ytPlayer.loadVideoById(currentSong.ytId);
+                }
+              }, 1000);
+            }        
+          }
+        });
+      }
+    };
+
+    if (!window.YT) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.body.appendChild(tag);
+      window.onYouTubeIframeAPIReady = initPlayer;
+    } else initPlayer();
+  }, []);
+
+  useEffect(() => {
+    const handleEnd = () => handleNext();
+    window.addEventListener("song-ended", handleEnd);
+    return () => window.removeEventListener("song-ended", handleEnd);
   }, [handleNext]);
 
-  // Cambiar fuente de audio cuando cambia la canción
   useEffect(() => {
-    if (currentSong && audioRef.current) {
-      audioRef.current.src = currentSong.audioUrl;
-      if (playing) {
-        audioRef.current.play().catch(() => setPlaying(false));
-      }
+    if (ytReady && currentSong?.ytId && window.ytPlayer) {
+      window.ytPlayer.loadVideoById(currentSong.ytId);
+      setPlaying(true);
     }
-  }, [currentSong]);
-
-  // Control de reproducción de Play/Pause
-  useEffect(() => {
-    if (audioRef.current) {
-      if (playing) {
-        audioRef.current.play().catch(() => setPlaying(false));
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  }, [playing]);
-
-  // Sincronización de Media Session para notificaciones y pantalla de bloqueo
-  useEffect(() => {
-    if ('mediaSession' in navigator && currentSong) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentSong.title,
-        artist: currentSong.artist,
-        album: 'Snacky Music',
-        artwork: [
-          { src: currentSong.coverUrl, sizes: '512x512', type: 'image/jpeg' }
-        ]
-      });
-
-      navigator.mediaSession.setActionHandler('play', () => setPlaying(true));
-      navigator.mediaSession.setActionHandler('pause', () => setPlaying(false));
-      navigator.mediaSession.setActionHandler('previoustrack', () => handlePrev());
-      navigator.mediaSession.setActionHandler('nexttrack', () => handleNext());
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime !== undefined && audioRef.current) {
-          audioRef.current.currentTime = details.seekTime;
-          setCurrentTime(details.seekTime);
-        }
-      });
-    }
-  }, [currentSong, handleNext, handlePrev]);
+  }, [currentSong?.ytId, ytReady]);
 
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+    if (ytReady && window.ytPlayer) {
+      if (playing) window.ytPlayer.playVideo();
+      else window.ytPlayer.pauseVideo();
     }
-  }, [playing]);
+  }, [playing, ytReady]);
 
   const openOverlay = useCallback((o: Overlay) => { setOverlay(o); }, []);
   const closeOverlay = useCallback(() => { setOverlay(null); }, []);
@@ -922,8 +1025,8 @@ export default function App() {
             <div className="absolute inset-0 z-40 flex flex-col bg-[#080808]">
               {overlay === "perfil" && <PerfilScreen onClose={closeOverlay} profileImg={profileImg} setProfileImg={setProfileImg} currentUser={currentUser} onLogout={handleLogout} />}
               {overlay === "genres" && <GenresScreen onClose={closeOverlay} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} />}
-              {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i || undefined}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
-              {overlay === "playlist_detail" && <PlaylistDetailScreen onClose={closeOverlay} openOverlay={openOverlay} playlist={playlists.find((p: Playlist) => p.id === activePlaylistId)} setEditPlaylistId={setEditPlaylistId} setPlaylists={setPlaylists} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} userFavorites={userFavorites} />}
+             {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i||undefined}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
+              {overlay === "playlist_detail" && <PlaylistDetailScreen onClose={closeOverlay} openOverlay={openOverlay} playlist={playlists.find(p => p.id === activePlaylistId)} setEditPlaylistId={setEditPlaylistId} setPlaylists={setPlaylists} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} userFavorites={userFavorites} />}
             </div>
           )}
         </div>
