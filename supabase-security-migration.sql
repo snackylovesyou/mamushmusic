@@ -31,5 +31,29 @@ create policy profiles_update_own on public.profiles
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (user_id, username, favorites, playlists, profile_img)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
+    '[]'::jsonb,
+    '[]'::jsonb,
+    null
+  )
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_auth_user();
+
 -- After all users have migrated, remove the exposed legacy column:
 -- alter table public.profiles drop column if exists password;

@@ -174,6 +174,7 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -186,12 +187,11 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
 
     setLoading(true);
     try {
-      const signIn = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPass });
-      let user = signIn.data.user;
-      let session = signIn.data.session;
-      let authError = signIn.error;
+      let user;
+      let session;
+      let authError;
 
-      if (authError) {
+      if (isRegistering) {
         const signUp = await supabase.auth.signUp({
           email: cleanEmail,
           password: cleanPass,
@@ -200,29 +200,34 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
         user = signUp.data.user;
         session = signUp.data.session;
         authError = signUp.error;
-        if (!authError && user && signUp.data.session) {
-          const { error: profileError } = await supabase.from('profiles').insert([{
+      } else {
+        const signIn = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPass });
+        user = signIn.data.user;
+        session = signIn.data.session;
+        authError = signIn.error;
+      }
+
+      if (authError || !user || !session) {
+        setErrorMsg(authError?.message || (isRegistering ? "Revisa tu correo para confirmar la cuenta" : "No se pudo iniciar sesión"));
+      } else {
+        let { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profileError?.code === "PGRST116") {
+          const createdProfile = await supabase.from('profiles').insert([{
             user_id: user.id,
             username: cleanUser,
             favorites: [],
             playlists: [],
             profile_img: null,
-          }]);
-          if (profileError) {
-            setErrorMsg(profileError.message);
-            return;
-          }
+          }]).select('username').single();
+          profile = createdProfile.data;
+          profileError = createdProfile.error;
         }
-      }
 
-      if (authError || !user || !session) {
-        setErrorMsg(authError?.message || "No se pudo iniciar sesión");
-      } else {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('user_id', user.id)
-          .single();
         if (profileError || !profile) {
           setErrorMsg("La cuenta no tiene un perfil válido");
         } else {
@@ -259,7 +264,10 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
           </div>
           {errorMsg && <p className="text-xs text-red-400 text-center font-semibold">{errorMsg}</p>}
           <button type="submit" disabled={loading || !username.trim() || !email.trim() || !password.trim()} className="w-full py-4 rounded-full bg-[#1ed760] text-black font-bold text-base disabled:opacity-50 shadow-lg btn-interactive transition-transform active:scale-95 mt-2">
-            {loading ? "Conectando..." : "Entrar / Registrarse"}
+            {loading ? "Conectando..." : isRegistering ? "Crear cuenta" : "Entrar"}
+          </button>
+          <button type="button" onClick={() => { setIsRegistering(!isRegistering); setErrorMsg(""); }} className="w-full text-sm text-[#aaa] py-2 btn-interactive">
+            {isRegistering ? "Ya tengo una cuenta" : "Crear una cuenta nueva"}
           </button>
         </form>
       </div>
