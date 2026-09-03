@@ -25,29 +25,36 @@ async function searchSoundCloudAPI(query: string): Promise<Song[]> {
   if (!response.ok) throw new Error(`SoundCloud search failed: ${response.status}`);
   const data = await response.json();
 
-  return Promise.all((data.collection || []).map(async (track: any) => {
-    const transcoding = track.media?.transcodings?.find((item: any) => item.format?.protocol === "progressive")
-      || track.media?.transcodings?.[0];
-    let audioUrl: string | undefined;
+  const songs = await Promise.all((data.collection || []).map(async (track: any) => {
+    try {
+      const transcoding = track.media?.transcodings?.find((item: any) => item.format?.protocol === "progressive")
+        || track.media?.transcodings?.[0];
+      let audioUrl: string | undefined;
 
-    if (transcoding?.url) {
-      const streamResponse = await fetch(`${transcoding.url}?client_id=${SOUNDCLOUD_CLIENT_ID}`);
-      if (streamResponse.ok) {
-        const streamData = await streamResponse.json();
-        audioUrl = streamData.url;
+      if (transcoding?.url) {
+        const separator = transcoding.url.includes("?") ? "&" : "?";
+        const streamResponse = await fetch(`${transcoding.url}${separator}client_id=${SOUNDCLOUD_CLIENT_ID}`);
+        if (streamResponse.ok) {
+          const streamData = await streamResponse.json();
+          audioUrl = streamData.url;
+        }
       }
-    }
 
-    return {
-      id: String(track.id),
-      title: track.title,
-      artist: track.user?.username || "SoundCloud",
-      duration: formatTime(track.duration / 1000),
-      grad: "from-zinc-800 to-black",
-      artworkUrl: track.artwork_url || track.user?.avatar_url,
-      audioUrl,
-    };
-  })).then((songs) => songs.filter((song) => song.audioUrl));
+      return {
+        id: String(track.id),
+        title: track.title,
+        artist: track.user?.username || "SoundCloud",
+        duration: formatTime(track.duration / 1000),
+        grad: "from-zinc-800 to-black",
+        artworkUrl: track.artwork_url || track.user?.avatar_url,
+        audioUrl,
+      };
+    } catch {
+      return null;
+    }
+  }));
+
+  return songs.filter((song): song is Song => song !== null && Boolean(song.audioUrl));
 }
 
 const formatTime = (secs: number) => {
