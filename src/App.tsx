@@ -79,7 +79,7 @@ const formatTime = (secs: number) => {
 };
 
 function SongImage({ song, className }: { song: Song, className?: string }) {
-  if (song.artworkUrl) return <img src={song.artworkUrl} alt={song.title} className={`object-cover ${className}`} />;
+  if (song.artworkUrl) return <img src={song.artworkUrl} alt={song.title} loading="lazy" decoding="async" className={`object-cover ${className}`} />;
   return <div className={`${className} bg-gradient-to-br ${song.grad}`} />;
 }
 
@@ -901,7 +901,7 @@ export default function App() {
           setCurrentTime(audioRef.current.currentTime);
           setDuration(audioRef.current.duration || 0);
         }
-      }, 500);
+      }, 1000);
     }
     return () => clearInterval(interval);
   }, [playing]);
@@ -1004,7 +1004,7 @@ export default function App() {
   return (
     <div className="flex items-center justify-center min-h-full bg-[#070707]">
       <div className="relative w-full max-w-[390px] flex flex-col overflow-hidden shadow-2xl" style={{ height: "100dvh", maxHeight: "844px" }}>
-        <audio ref={audioRef} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onEnded={handleNext} />
+        <audio ref={audioRef} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)} onEnded={handleNext} />
         
         <div className="flex-1 relative overflow-hidden flex flex-col">
           <div className="absolute inset-0 z-0 pointer-events-none">
