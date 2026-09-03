@@ -800,26 +800,6 @@ export default function App() {
 
   const isInitialized = useRef(false);
 
-  // NUEVO: Engañar al navegador para evitar que YouTube se pause al apagar la pantalla o minimizar
-  useEffect(() => {
-    const handleVisibilityChange = (e: Event) => {
-      e.stopImmediatePropagation();
-      Object.defineProperty(document, 'hidden', { value: false, configurable: true });
-      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
-      const event = new Event('visibilitychange');
-      document.dispatchEvent(event);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange, true);
-    document.addEventListener('webkitvisibilitychange', handleVisibilityChange, true);
-    window.addEventListener('blur', (e) => e.stopImmediatePropagation(), true);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange, true);
-      document.removeEventListener('webkitvisibilitychange', handleVisibilityChange, true);
-    };
-  }, []);
-
   useEffect(() => {
     if (currentUser) {
       isInitialized.current = false;
