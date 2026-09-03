@@ -8,55 +8,46 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 declare global {
   interface Window { 
-    onYouTubeIframeAPIReady: () => void; 
-    YT: any; 
-    ytPlayer: any; 
     cordova: any; 
   }
 }
 
-type Song = { id: string; title: string; artist: string; duration: string; grad: string; ytId: string };
+type Song = { id: string; title: string; artist: string; duration: string; grad: string; artworkUrl?: string; audioUrl?: string; ytId?: string };
 type Playlist = { id: string; name: string; count: number; grad: string; desc: string; songs: Song[]; image?: string };
 type Tab = "inicio" | "playlists" | "favoritos" | "artistas";
 type Overlay = "genres" | "notificaciones" | "perfil" | "create_playlist" | "playlist_detail";
 
-const YOUTUBE_API_KEYS = [
-  "AIzaSyBs19MUWL4VnspLsEW5dalvN93UolEu3Hs",
-  "AIzaSyAJx7WpOJRfOmz0DZhm2YtojqihjCSrf3k"
-];
+const SOUNDCLOUD_CLIENT_ID = "Pb72ranhoyt6gw7hM7TkzUItXlMWSNSo";
 
-let currentApiKeyIndex = 0;
+async function searchSoundCloudAPI(query: string): Promise<Song[]> {
+  const url = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=${SOUNDCLOUD_CLIENT_ID}&limit=25`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`SoundCloud search failed: ${response.status}`);
+  const data = await response.json();
 
-async function searchYouTubeAPI(query: string): Promise<Song[]> {
-  if (YOUTUBE_API_KEYS.length === 0) { alert("¡Faltan las API Keys!"); return []; }
+  return Promise.all((data.collection || []).map(async (track: any) => {
+    const transcoding = track.media?.transcodings?.find((item: any) => item.format?.protocol === "progressive")
+      || track.media?.transcodings?.[0];
+    let audioUrl: string | undefined;
 
-  for (let attempt = 0; attempt < YOUTUBE_API_KEYS.length; attempt++) {
-    const activeKey = YOUTUBE_API_KEYS[currentApiKeyIndex];
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${encodeURIComponent(query)}&type=video&key=${activeKey}`;
-
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data.error) {
-        currentApiKeyIndex = (currentApiKeyIndex + 1) % YOUTUBE_API_KEYS.length;
-        continue;
+    if (transcoding?.url) {
+      const streamResponse = await fetch(`${transcoding.url}?client_id=${SOUNDCLOUD_CLIENT_ID}`);
+      if (streamResponse.ok) {
+        const streamData = await streamResponse.json();
+        audioUrl = streamData.url;
       }
-
-      if (!data.items || data.items.length === 0) return [];
-
-      return data.items.map((item: any) => ({
-        id: item.id.videoId,
-        title: item.snippet.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'),
-        artist: item.snippet.channelTitle,
-        duration: "--:--", grad: "from-zinc-800 to-black", ytId: item.id.videoId
-      }));
-
-    } catch (error) {
-      currentApiKeyIndex = (currentApiKeyIndex + 1) % YOUTUBE_API_KEYS.length;
     }
-  }
-  return [];
+
+    return {
+      id: String(track.id),
+      title: track.title,
+      artist: track.user?.username || "SoundCloud",
+      duration: formatTime(track.duration / 1000),
+      grad: "from-zinc-800 to-black",
+      artworkUrl: track.artwork_url || track.user?.avatar_url,
+      audioUrl,
+    };
+  })).then((songs) => songs.filter((song) => song.audioUrl));
 }
 
 const formatTime = (secs: number) => {
@@ -67,7 +58,7 @@ const formatTime = (secs: number) => {
 };
 
 function SongImage({ song, className }: { song: Song, className?: string }) {
-  if (song.ytId) return <img src={`https://i.ytimg.com/vi/${song.ytId}/hqdefault.jpg`} alt={song.title} className={`object-cover ${className}`} />;
+  if (song.artworkUrl) return <img src={song.artworkUrl} alt={song.title} className={`object-cover ${className}`} />;
   return <div className={`${className} bg-gradient-to-br ${song.grad}`} />;
 }
 
@@ -222,7 +213,7 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim() !== '') {
       setIsSearching(true); setHasSearched(true);
-      const results = await searchYouTubeAPI(searchQuery);
+      const results = await searchSoundCloudAPI(searchQuery);
       setSearchResults(results); setIsSearching(false);
     }
   };
@@ -251,7 +242,7 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
       </div>
 
       {isSearching ? (
-        <p className="text-sm text-[#777] text-center mt-8 animate-pulse">Conectando con YouTube...</p>
+        <p className="text-sm text-[#777] text-center mt-8 animate-pulse">Conectando con SoundCloud...</p>
       ) : hasSearched ? (
         <section className="mb-4 px-4 flex-1">
           <SectionLabel>Resultados de la red</SectionLabel>
@@ -331,7 +322,7 @@ function GenresScreen({ onClose, setQueue, setCurrentSong, setPlaying }: any) {
 
   const handleGenreClick = async (genre: any) => {
     setLoadingGenre(genre.id);
-    const results = await searchYouTubeAPI(genre.query);
+    const results = await searchSoundCloudAPI(genre.query);
     setLoadingGenre(null);
     if (results.length > 0) {
       const randomSong = results[Math.floor(Math.random() * results.length)];
@@ -512,7 +503,7 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
   const handleSearch = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && search.trim() !== '') {
       setIsSearching(true);
-      const res = await searchYouTubeAPI(search);
+      const res = await searchSoundCloudAPI(search);
       setResults(res); setIsSearching(false);
     }
   };
@@ -589,29 +580,6 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
 }
 
 function FullScreenPlayer({ currentSong, playing, setPlaying, isRepeat, setIsRepeat, isShuffle, setIsShuffle, handleNext, handlePrev, currentTime, duration, handleSeek, isFullScreen, setIsFullScreen, userFavorites, toggleFavorite }: any) {
-  const [showVideo, setShowVideo] = useState(false);
-
-  useEffect(() => {
-    const container = document.getElementById("yt-isolated-container");
-    if (container) {
-      if (isFullScreen && showVideo) {
-        container.style.position = "absolute";
-        container.style.top = "0";
-        container.style.left = "0";
-        container.style.width = "100%";
-        container.style.height = "100%";
-        container.style.borderRadius = "24px";
-        container.style.zIndex = "120";
-        container.style.opacity = "1";
-        container.style.pointerEvents = "auto";
-      } else {
-        container.style.top = "-9999px";
-        container.style.opacity = "0";
-        container.style.pointerEvents = "none";
-      }
-    }
-  }, [isFullScreen, showVideo]);
-
   if (!currentSong) return null;
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
   const isFav = userFavorites.some((fav: Song) => fav.id === currentSong.id);
@@ -622,17 +590,13 @@ function FullScreenPlayer({ currentSong, playing, setPlaying, isRepeat, setIsRep
       
       <div className="flex items-center justify-between px-6 pt-12 pb-6 relative z-10">
         <button onClick={() => setIsFullScreen(false)} className="p-2 text-white btn-interactive"><ChevronDownIcon /></button>
-        <div className="glass rounded-full flex items-center p-1">
-          <button onClick={() => setShowVideo(false)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors btn-interactive ${!showVideo ? 'bg-white text-black' : 'text-white'}`}>Canción</button>
-          <button onClick={() => setShowVideo(true)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors btn-interactive ${showVideo ? 'bg-white text-black' : 'text-white'}`}>Video</button>
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-[#777]">SoundCloud</p>
         <div className="w-10" />
       </div>
 
       <div className="flex-1 flex flex-col justify-center px-8 pb-12 relative z-10">
         <div className="w-full aspect-square rounded-3xl shadow-2xl mb-10 overflow-hidden relative bg-black/40 flex flex-col items-center justify-center">
-          {!showVideo && <SongImage song={currentSong} className="w-full h-full" />}
-          <div id="youtube-player-slot" className={`w-full h-full absolute inset-0 ${showVideo ? 'block' : 'hidden'}`} />
+          <SongImage song={currentSong} className="w-full h-full" />
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -790,7 +754,6 @@ export default function App() {
   const [queue, setQueue] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [ytReady, setYtReady] = useState(false);
   
   const [isRepeat, setIsRepeat] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
@@ -800,6 +763,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
 
   const isInitialized = useRef(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -862,7 +826,7 @@ export default function App() {
   const handleNext = useCallback(() => {
     const { queue, currentSong, isShuffle, isRepeat } = stateRef.current;
     if (queue.length === 0 || !currentSong) return;
-    if (isRepeat && window.ytPlayer) { window.ytPlayer.seekTo(0); window.ytPlayer.playVideo(); return; }
+    if (isRepeat && audioRef.current) { audioRef.current.currentTime = 0; void audioRef.current.play(); return; }
     if (isShuffle) setCurrentSong(queue[Math.floor(Math.random() * queue.length)]);
     else setCurrentSong(queue[(queue.findIndex(s => s.id === currentSong.id) + 1) % queue.length]);
     setPlaying(true);
@@ -878,21 +842,21 @@ export default function App() {
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const newTime = ((e.clientX - r.left) / r.width) * duration;
-    if (window.ytPlayer) { window.ytPlayer.seekTo(newTime, true); setCurrentTime(newTime); }
+    if (audioRef.current) { audioRef.current.currentTime = newTime; setCurrentTime(newTime); }
   };
 
   useEffect(() => {
     let interval: any;
-    if (playing && ytReady) {
+    if (playing && audioRef.current) {
       interval = setInterval(() => {
-        if (window.ytPlayer && typeof window.ytPlayer.getCurrentTime === 'function') {
-          setCurrentTime(window.ytPlayer.getCurrentTime());
-          setDuration(window.ytPlayer.getDuration() || 0);
+        if (audioRef.current) {
+          setCurrentTime(audioRef.current.currentTime);
+          setDuration(audioRef.current.duration || 0);
         }
       }, 500);
     }
     return () => clearInterval(interval);
-  }, [playing, ytReady]);
+  }, [playing]);
 
   useEffect(() => {
     if (!currentSong) {
@@ -904,8 +868,8 @@ export default function App() {
       title: currentSong.title,
       artist: currentSong.artist,
       album: "Snacky Music",
-      artwork: currentSong.ytId ? [{
-        src: `https://i.ytimg.com/vi/${currentSong.ytId}/hqdefault.jpg`,
+      artwork: currentSong.artworkUrl ? [{
+        src: currentSong.artworkUrl,
         sizes: "480x360",
         type: "image/jpeg",
       }] : [],
@@ -920,8 +884,8 @@ export default function App() {
       ["nexttrack", () => handleNext()],
       ["previoustrack", () => handlePrev()],
       ["seekto", ({ seekTime }) => {
-        if (typeof seekTime === "number" && window.ytPlayer) {
-          window.ytPlayer.seekTo(seekTime, true);
+        if (typeof seekTime === "number" && audioRef.current) {
+          audioRef.current.currentTime = seekTime;
           setCurrentTime(seekTime);
         }
       }],
@@ -949,77 +913,19 @@ export default function App() {
   }, [currentTime, duration]);
 
   useEffect(() => {
-    let container = document.getElementById("yt-isolated-container");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "yt-isolated-container";
-      container.style.position = "fixed";
-      container.style.top = "-9999px";
-      container.style.left = "-9999px";
-      container.style.width = "280px"; 
-      container.style.height = "280px";
-      container.style.pointerEvents = "none";
-      const playerDiv = document.createElement("div");
-      playerDiv.id = "youtube-player-root";
-      container.appendChild(playerDiv);
-      document.body.appendChild(container);
-    }
-
-    const initPlayer = () => {
-      if (!window.ytPlayer) {
-        window.ytPlayer = new window.YT.Player("youtube-player-root", {
-          height: '100%', width: '100%',
-          playerVars: { 
-            autoplay: 1, 
-            controls: 0, 
-            disablekb: 1, 
-            fs: 0, 
-            modestbranding: 1, 
-            playsinline: 1, 
-            origin: window.location.origin 
-          },
-          events: {
-            onReady: () => { setYtReady(true); if (window.ytPlayer.unMute) window.ytPlayer.unMute(); if (window.ytPlayer.setVolume) window.ytPlayer.setVolume(100); },
-            onStateChange: (e: any) => { if (e.data === window.YT.PlayerState.ENDED) window.dispatchEvent(new Event("song-ended")); },
-            onError: () => {
-              setTimeout(() => {
-                if (window.ytPlayer && currentSong?.ytId) {
-                  window.ytPlayer.loadVideoById(currentSong.ytId);
-                }
-              }, 1000);
-            }        
-          }
-        });
-      }
-    };
-
-    if (!window.YT) {
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.body.appendChild(tag);
-      window.onYouTubeIframeAPIReady = initPlayer;
-    } else initPlayer();
-  }, []);
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = currentSong?.audioUrl || "";
+    audio.load();
+    if (currentSong && playing) void audio.play().catch(() => setPlaying(false));
+  }, [currentSong?.audioUrl]);
 
   useEffect(() => {
-    const handleEnd = () => handleNext();
-    window.addEventListener("song-ended", handleEnd);
-    return () => window.removeEventListener("song-ended", handleEnd);
-  }, [handleNext]);
-
-  useEffect(() => {
-    if (ytReady && currentSong?.ytId && window.ytPlayer) {
-      window.ytPlayer.loadVideoById(currentSong.ytId);
-      setPlaying(true);
-    }
-  }, [currentSong?.ytId, ytReady]);
-
-  useEffect(() => {
-    if (ytReady && window.ytPlayer) {
-      if (playing) window.ytPlayer.playVideo();
-      else window.ytPlayer.pauseVideo();
-    }
-  }, [playing, ytReady]);
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) void audio.play().catch(() => setPlaying(false));
+    else audio.pause();
+  }, [playing]);
 
   const openOverlay = useCallback((o: Overlay) => { setOverlay(o); }, []);
   const closeOverlay = useCallback(() => { setOverlay(null); }, []);
@@ -1031,6 +937,7 @@ export default function App() {
   return (
     <div className="flex items-center justify-center min-h-full bg-[#070707]">
       <div className="relative w-full max-w-[390px] flex flex-col overflow-hidden shadow-2xl" style={{ height: "100dvh", maxHeight: "844px" }}>
+        <audio ref={audioRef} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onEnded={handleNext} />
         
         <div className="flex-1 relative overflow-hidden flex flex-col">
           <div className="absolute inset-0 z-0 pointer-events-none">
