@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createClient } from '@supabase/supabase-js';
+import { MediaSession } from '@jofr/capacitor-media-session';
 
 const supabaseUrl = 'https://qnognnjfxltpqqzpjtft.supabase.co';
 const supabaseKey = 'sb_publishable_Y9IviI2xrMpvq6kNav3jLA_E1zYZVJv';
@@ -892,6 +893,60 @@ export default function App() {
     }
     return () => clearInterval(interval);
   }, [playing, ytReady]);
+
+  useEffect(() => {
+    if (!currentSong) {
+      void MediaSession.setPlaybackState({ playbackState: "none" });
+      return;
+    }
+
+    void MediaSession.setMetadata({
+      title: currentSong.title,
+      artist: currentSong.artist,
+      album: "Snacky Music",
+      artwork: currentSong.ytId ? [{
+        src: `https://i.ytimg.com/vi/${currentSong.ytId}/hqdefault.jpg`,
+        sizes: "480x360",
+        type: "image/jpeg",
+      }] : [],
+    });
+    void MediaSession.setPlaybackState({ playbackState: playing ? "playing" : "paused" });
+  }, [currentSong, playing]);
+
+  useEffect(() => {
+    const actions: Array<[MediaSessionAction, (details: { seekTime?: number | null }) => void]> = [
+      ["play", () => setPlaying(true)],
+      ["pause", () => setPlaying(false)],
+      ["nexttrack", () => handleNext()],
+      ["previoustrack", () => handlePrev()],
+      ["seekto", ({ seekTime }) => {
+        if (typeof seekTime === "number" && window.ytPlayer) {
+          window.ytPlayer.seekTo(seekTime, true);
+          setCurrentTime(seekTime);
+        }
+      }],
+    ];
+
+    actions.forEach(([action, handler]) => {
+      void MediaSession.setActionHandler({ action }, handler);
+    });
+
+    return () => {
+      actions.forEach(([action]) => {
+        void MediaSession.setActionHandler({ action }, null);
+      });
+    };
+  }, [handleNext, handlePrev]);
+
+  useEffect(() => {
+    if (duration > 0 && currentTime >= 0 && currentTime <= duration) {
+      void MediaSession.setPositionState({
+        duration,
+        position: currentTime,
+        playbackRate: 1,
+      });
+    }
+  }, [currentTime, duration]);
 
   useEffect(() => {
     let container = document.getElementById("yt-isolated-container");
