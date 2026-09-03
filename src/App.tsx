@@ -10,7 +10,7 @@ declare global {
     onYouTubeIframeAPIReady: () => void; 
     YT: any; 
     ytPlayer: any; 
-    cordova: any; // Agregado para soportar el plugin de segundo plano
+    cordova: any; 
   }
 }
 
@@ -218,11 +218,11 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
 
   useEffect(() => { setPlaceholder(placeholders[Math.floor(Math.random() * placeholders.length)]); }, []);
 
-const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim() !== '') {
       setIsSearching(true); setHasSearched(true);
       const results = await searchYouTubeAPI(searchQuery);
-      setSearchResults(results); setIsSearching(false); // <-- Le agregamos el 'set'
+      setSearchResults(results); setIsSearching(false);
     }
   };
 
@@ -800,36 +800,25 @@ export default function App() {
 
   const isInitialized = useRef(false);
 
-  // EFECTO NUEVO: Iniciar Background Mode al cargar la app
+  // NUEVO: Engañar al navegador para evitar que YouTube se pause al apagar la pantalla o minimizar
   useEffect(() => {
-    if (window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
-      const bgMode = window.cordova.plugins.backgroundMode;
-      bgMode.enable();
-      
-      // Opciones visuales de la notificación
-      bgMode.setDefaults({
-        title: "Snacky Music",
-        text: "Reproduciendo música en segundo plano",
-        color: '1ed760',
-        hidden: false,
-        silent: true
-      });
+    const handleVisibilityChange = (e: Event) => {
+      e.stopImmediatePropagation();
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      const event = new Event('visibilitychange');
+      document.dispatchEvent(event);
+    };
 
-      // CRUCIAL: Evitar que el sistema pause el navegador interno 
-      bgMode.on('activate', () => {
-        bgMode.disableWebViewOptimizations();
-      });
-    }
+    document.addEventListener('visibilitychange', handleVisibilityChange, true);
+    document.addEventListener('webkitvisibilitychange', handleVisibilityChange, true);
+    window.addEventListener('blur', (e) => e.stopImmediatePropagation(), true);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange, true);
+      document.removeEventListener('webkitvisibilitychange', handleVisibilityChange, true);
+    };
   }, []);
-
-  // EFECTO NUEVO: Actualizar la notificación cuando cambia la canción
-  useEffect(() => {
-    if (currentSong && window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
-      window.cordova.plugins.backgroundMode.configure({
-        text: `${currentSong.title} - ${currentSong.artist}`
-      });
-    }
-  }, [currentSong]);
 
   useEffect(() => {
     if (currentUser) {
@@ -1025,7 +1014,7 @@ export default function App() {
             <div className="absolute inset-0 z-40 flex flex-col bg-[#080808]">
               {overlay === "perfil" && <PerfilScreen onClose={closeOverlay} profileImg={profileImg} setProfileImg={setProfileImg} currentUser={currentUser} onLogout={handleLogout} />}
               {overlay === "genres" && <GenresScreen onClose={closeOverlay} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} />}
-             {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i||undefined}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
+              {overlay === "create_playlist" && <CreatePlaylistScreen onClose={closeOverlay} onSave={(n:string, d:string, i:string|null) => { if(editPlaylistId) setPlaylists(p=>p.map(pl=>pl.id===editPlaylistId?{...pl,name:n,desc:d,image:i||undefined}:pl)); else setPlaylists([...playlists,{id:Date.now().toString(),name:n,count:0,grad:gradients[playlists.length%gradients.length],desc:d,songs:[],image:i||undefined}]); closeOverlay(); setActiveTab("playlists"); }} playlists={playlists} editPlaylistId={editPlaylistId} />}
               {overlay === "playlist_detail" && <PlaylistDetailScreen onClose={closeOverlay} openOverlay={openOverlay} playlist={playlists.find(p => p.id === activePlaylistId)} setEditPlaylistId={setEditPlaylistId} setPlaylists={setPlaylists} setQueue={setQueue} setCurrentSong={setCurrentSong} setPlaying={setPlaying} userFavorites={userFavorites} />}
             </div>
           )}
