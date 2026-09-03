@@ -109,6 +109,7 @@ function SearchIcon({ className = "w-4 h-4 flex-shrink-0" }: { className?: strin
 function ArrowLeftIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>; }
 function ChevronDownIcon({ className = "w-6 h-6" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="6 9 12 15 18 9" /></svg>; }
 function XIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>; }
+function TrashIcon({ className = "w-4 h-4" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5M14 11v5" /></svg>; }
 function HomeIcon({ active, className = "w-[18px] h-[18px]" }: { active?: boolean; className?: string }) { return <svg viewBox="0 0 24 24" fill={active ? "white" : "none"} stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>; }
 function PlusIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>; }
 function PencilIcon({ className = "w-5 h-5" }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg>; }
@@ -553,6 +554,12 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
 
   const isSongInPlaylist = (song: Song) => playlist.songs.some((s:Song) => s.id === song.id);
 
+  const removeSongFromPlaylist = (songId: string) => {
+    setPlaylists((prev: Playlist[]) => prev.map(p => p.id === playlist.id
+      ? { ...p, songs: p.songs.filter(song => song.id !== songId) }
+      : p));
+  };
+
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-24 bg-[#080808] screen-enter">
       <div className={`pt-12 pb-6 px-4 relative ${!playlist.image ? `bg-gradient-to-br ${playlist.grad}` : ''}`}>
@@ -577,11 +584,14 @@ function PlaylistDetailScreen({ playlist, onClose, openOverlay, setEditPlaylistI
               <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/40 flex items-center justify-center"><PlayIcon className="w-4 h-4 opacity-0 group-hover:opacity-100" /></div>
             </button>
             <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-white truncate">{s.title}</p><p className="text-xs text-[#777] truncate">{s.artist}</p></div>
+            <button onClick={() => removeSongFromPlaylist(s.id)} title="Eliminar de la playlist" aria-label={`Eliminar ${s.title} de la playlist`} className="p-2 text-[#777] hover:text-red-400 btn-interactive">
+              <TrashIcon />
+            </button>
           </div>
         ))}
 
         <div className="mt-8 mb-4 border-t border-white/10 pt-6">
-          <p className="text-sm font-bold text-white mb-3">Buscar en YouTube</p>
+          <p className="text-sm font-bold text-white mb-3">Buscar en SoundCloud</p>
           <div className="glass rounded-2xl flex items-center gap-3 px-4 py-3 border border-white/10 mb-4 focus-within:border-[#1ed760]/50 transition-colors">
             <SearchIcon />
             <input type="text" placeholder="Escribe y presiona Enter..." className="bg-transparent outline-none text-sm text-white w-full placeholder-[#777]" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearch} />
