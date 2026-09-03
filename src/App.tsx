@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { MediaSession } from '@jofr/capacitor-media-session';
 
@@ -19,11 +20,34 @@ type Overlay = "genres" | "notificaciones" | "perfil" | "create_playlist" | "pla
 
 const SOUNDCLOUD_CLIENT_ID = "Pb72ranhoyt6gw7hM7TkzUItXlMWSNSo";
 
+function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("La petición tardó demasiado")), timeoutMs);
+    fetch(url).then((response) => {
+      window.clearTimeout(timeout);
+      resolve(response);
+    }).catch((error) => {
+      window.clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
+async function getSoundCloudJson(url: string): Promise<any> {
+  if (Capacitor.isNativePlatform()) {
+    const response = await CapacitorHttp.get({ url, connectTimeout: 10000, readTimeout: 10000 });
+    if (response.status < 200 || response.status >= 300) throw new Error(`SoundCloud request failed: ${response.status}`);
+    return response.data;
+  }
+
+  const response = await fetchWithTimeout(url);
+  if (!response.ok) throw new Error(`SoundCloud request failed: ${response.status}`);
+  return response.json();
+}
+
 async function searchSoundCloudAPI(query: string): Promise<Song[]> {
   const url = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=${SOUNDCLOUD_CLIENT_ID}&limit=25`;
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error(`SoundCloud search failed: ${response.status}`);
-  const data = await response.json();
+  const data = await getSoundCloudJson(url);
 
   return (data.collection || []).map((track: any) => {
     const transcoding = track.media?.transcodings?.find((item: any) => item.format?.protocol === "progressive")
@@ -42,9 +66,7 @@ async function searchSoundCloudAPI(query: string): Promise<Song[]> {
 
 async function resolveSoundCloudStream(streamUrl: string): Promise<string> {
   const separator = streamUrl.includes("?") ? "&" : "?";
-  const response = await fetch(`${streamUrl}${separator}client_id=${SOUNDCLOUD_CLIENT_ID}`, { signal: AbortSignal.timeout(10000) });
-  if (!response.ok) throw new Error(`SoundCloud stream failed: ${response.status}`);
-  const data = await response.json();
+  const data = await getSoundCloudJson(`${streamUrl}${separator}client_id=${SOUNDCLOUD_CLIENT_ID}`);
   if (!data.url) throw new Error("SoundCloud stream URL missing");
   return data.url;
 }
@@ -205,6 +227,7 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
   const [searchResults, setSearchResults] = useState<Song[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [placeholder, setPlaceholder] = useState(placeholders[0]);
 
   useEffect(() => { setPlaceholder(placeholders[Math.floor(Math.random() * placeholders.length)]); }, []);
@@ -212,10 +235,12 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim() !== '') {
       setIsSearching(true); setHasSearched(true);
+      setSearchError("");
       try {
         setSearchResults(await searchSoundCloudAPI(searchQuery));
       } catch {
         setSearchResults([]);
+        setSearchError("No se pudo conectar con SoundCloud. Comprueba tu conexión.");
       } finally {
         setIsSearching(false);
       }
@@ -263,7 +288,7 @@ function InicioContent({ openOverlay, setCurrentSong, setPlaying, userFavorites,
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-[#777] text-center mt-8">No se encontraron resultados.</p>}
+          ) : <p className="text-sm text-[#777] text-center mt-8">{searchError || "No se encontraron resultados."}</p>}
         </section>
       ) : (
         <>

@@ -2,5 +2,10 @@
   "appId": "com.snackymusic.app",
   "appName": "Snacky Music",
   "webDir": "dist",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }
