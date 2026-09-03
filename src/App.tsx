@@ -172,6 +172,7 @@ const compressAndConvertImage = (file: File, callback: (base64Str: string) => vo
 
 function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -179,32 +180,53 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUser = username.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
-    if (!cleanUser || !cleanPass) return;
+    if (!cleanUser || !cleanEmail || !cleanPass) return;
 
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', cleanUser)
-        .single();
+      const signIn = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPass });
+      let user = signIn.data.user;
+      let session = signIn.data.session;
+      let authError = signIn.error;
 
-      if (data) {
-        if (data.password === cleanPass) {
-          onLogin(cleanUser);
-        } else {
-          setErrorMsg("Contraseña incorrecta");
+      if (authError) {
+        const signUp = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPass,
+          options: { data: { username: cleanUser } },
+        });
+        user = signUp.data.user;
+        session = signUp.data.session;
+        authError = signUp.error;
+        if (!authError && user && signUp.data.session) {
+          const { error: profileError } = await supabase.from('profiles').insert([{
+            user_id: user.id,
+            username: cleanUser,
+            favorites: [],
+            playlists: [],
+            profile_img: null,
+          }]);
+          if (profileError) {
+            setErrorMsg(profileError.message);
+            return;
+          }
         }
+      }
+
+      if (authError || !user || !session) {
+        setErrorMsg(authError?.message || "No se pudo iniciar sesión");
       } else {
-        const { error: insertError } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .insert([{ username: cleanUser, password: cleanPass, favorites: [], playlists: [], profile_img: null }]);
-        
-        if (!insertError) {
-          onLogin(cleanUser);
+          .select('username')
+          .eq('user_id', user.id)
+          .single();
+        if (profileError || !profile) {
+          setErrorMsg("La cuenta no tiene un perfil válido");
         } else {
-          setErrorMsg("Error al registrar cuenta");
+          onLogin(profile.username);
         }
       }
     } catch {
@@ -230,10 +252,13 @@ function LoginScreen({ onLogin }: { onLogin: (username: string) => void }) {
             <input type="text" placeholder="Usuario (ej. snacky)" value={username} onChange={(e) => { setUsername(e.target.value); setErrorMsg(""); }} className="bg-transparent outline-none text-sm text-white w-full placeholder-[#777]" autoFocus />
           </div>
           <div className="glass rounded-2xl flex items-center px-4 py-3 border border-white/10 focus-within:border-[#1ed760]">
+            <input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => { setEmail(e.target.value); setErrorMsg(""); }} className="bg-transparent outline-none text-sm text-white w-full placeholder-[#777]" />
+          </div>
+          <div className="glass rounded-2xl flex items-center px-4 py-3 border border-white/10 focus-within:border-[#1ed760]">
             <input type="password" placeholder="Contraseña" value={password} onChange={(e) => { setPassword(e.target.value); setErrorMsg(""); }} className="bg-transparent outline-none text-sm text-white w-full placeholder-[#777]" />
           </div>
           {errorMsg && <p className="text-xs text-red-400 text-center font-semibold">{errorMsg}</p>}
-          <button type="submit" disabled={loading || !username.trim() || !password.trim()} className="w-full py-4 rounded-full bg-[#1ed760] text-black font-bold text-base disabled:opacity-50 shadow-lg btn-interactive transition-transform active:scale-95 mt-2">
+          <button type="submit" disabled={loading || !username.trim() || !email.trim() || !password.trim()} className="w-full py-4 rounded-full bg-[#1ed760] text-black font-bold text-base disabled:opacity-50 shadow-lg btn-interactive transition-transform active:scale-95 mt-2">
             {loading ? "Conectando..." : "Entrar / Registrarse"}
           </button>
         </form>
@@ -798,7 +823,7 @@ function BottomNav({ activeTab, setActiveTab, onArtistsBlocked }: { activeTab: T
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    return localStorage.getItem("snacky_active_session") || null;
+    return null;
   });
 
   const [activeTab, setActiveTab] = useState<Tab>("inicio");
@@ -826,6 +851,14 @@ export default function App() {
 
   const isInitialized = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) return;
+      const { data: profile } = await supabase.from('profiles').select('username').eq('user_id', session.user.id).single();
+      if (profile) setCurrentUser(profile.username);
+    });
+  }, []);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -859,7 +892,7 @@ export default function App() {
       isInitialized.current = false;
       supabase
         .from('profiles')
-        .select('*')
+        .select('favorites, playlists, profile_img')
         .eq('username', currentUser)
         .single()
         .then(({ data }) => {
@@ -894,12 +927,11 @@ export default function App() {
   useEffect(() => { syncToCloud({ profileImg: profileImg }); }, [profileImg]);
 
   const handleLogin = (username: string) => {
-    localStorage.setItem("snacky_active_session", username);
     setCurrentUser(username);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("snacky_active_session");
+    void supabase.auth.signOut();
     setCurrentUser(null);
     setCurrentSong(null);
     setPlaying(false);
