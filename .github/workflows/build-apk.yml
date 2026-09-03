@@ -33,14 +33,20 @@ jobs:
           npm run build
           npx cap sync android
 
+      # SOLUCIÓN: Instalamos Gradle directamente en el servidor
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2' # Versión estable y compatible con Capacitor 6
+
       - name: Build Android APK
         working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        # Usamos gradle directo, sin el ./gradlew que causaba el error
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: SnackyMusic-APK
+          # PREVENCIÓN: Usamos comodines para que encuentre el APK sin importar la ruta exacta
+          path: android/app/build/outputs/apk/**/*.apk
