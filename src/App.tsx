@@ -145,6 +145,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 const compressAndConvertImage = (file: File, callback: (base64Str: string) => void) => {
   const reader = new FileReader();
   reader.onload = (event) => {
+    const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+    if (isGif && event.target?.result) {
+      callback(event.target.result as string);
+      return;
+    }
+
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
@@ -562,7 +568,7 @@ function CreatePlaylistScreen({ onClose, onSave, playlists, editPlaylistId }: an
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all">
             <CameraIcon className="w-6 h-6 text-white mb-1" /><span className="text-[10px] font-bold text-white">Elegir foto</span>
           </div>
-          <input type="file" ref={fileInputRefReal} hidden accept="image/*" onChange={handleImageChange} />
+          <input type="file" ref={fileInputRefReal} hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />
         </div>
       </div>
       <input type="text" placeholder="Nombre de la playlist" value={name} onChange={e => setName(e.target.value)} className="w-full bg-transparent border-b border-white/20 text-white text-lg py-2 outline-none mb-6 focus:border-[#1ed760] transition-colors" autoFocus />
@@ -855,7 +861,7 @@ export default function App() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [updateRequired, setUpdateRequired] = useState<{ versionName: string; downloadUrl: string } | null>(null);
-  const [appVersion, setAppVersion] = useState("1.3.0");
+  const [appVersion, setAppVersion] = useState("2.0.0");
   const [artistsNotice, setArtistsNotice] = useState(false);
 
   const isInitialized = useRef(false);
